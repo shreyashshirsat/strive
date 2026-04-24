@@ -1,6 +1,7 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
-import 'package:timezone/data/latest.dart' as tz;
+import 'package:timezone/data/latest.dart' as tz_data;
+import 'package:flutter_timezone/flutter_timezone.dart';
 import '../models/todo.dart';
 
 class NotificationService {
@@ -22,7 +23,10 @@ class NotificationService {
       android: initializationSettingsAndroid,
     );
 
-    tz.initializeTimeZones();
+    tz_data.initializeTimeZones();
+    final String timeZoneName = await FlutterTimezone.getLocalTimezone();
+    tz.setLocalLocation(tz.getLocation(timeZoneName));
+
     await flutterLocalNotificationsPlugin.initialize(initializationSettings);
 
     // Request permissions for Android 13+

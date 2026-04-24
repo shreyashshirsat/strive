@@ -34,7 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
     List<Todo> loadedTodos = [];
     if (todosJson != null) {
       final List<dynamic> decoded = json.decode(todosJson);
-      loadedTodos = decoded.map((item) => Todo.fromMap(item)).toList();
+      loadedTodos = decoded.map((item) => Todo.fromMap(item as Map<String, dynamic>)).toList();
     }
 
     if (lastResetDate != today) {

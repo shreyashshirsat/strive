@@ -45,12 +45,12 @@ class _WorkoutCreateScreenState extends State<WorkoutCreateScreen> {
       int count = savedStrings.length + 1;
       
       String defaultName = "Workout Plan $count";
-      bool nameExists = savedStrings.any((s) => WorkoutPlan.fromMap(json.decode(s)).name == defaultName);
+      bool nameExists = savedStrings.any((s) => WorkoutPlan.fromMap(json.decode(s) as Map<String, dynamic>).name == defaultName);
       
       while (nameExists) {
         count++;
         defaultName = "Workout Plan $count";
-        nameExists = savedStrings.any((s) => WorkoutPlan.fromMap(json.decode(s)).name == defaultName);
+        nameExists = savedStrings.any((s) => WorkoutPlan.fromMap(json.decode(s) as Map<String, dynamic>).name == defaultName);
       }
       
       setState(() {
@@ -406,7 +406,7 @@ class _WorkoutCreateScreenState extends State<WorkoutCreateScreen> {
     
     // Check for unique name
     bool nameExists = savedStrings.any((s) {
-      final p = WorkoutPlan.fromMap(json.decode(s));
+      final p = WorkoutPlan.fromMap(json.decode(s) as Map<String, dynamic>);
       return p.name.trim().toLowerCase() == _nameController.text.trim().toLowerCase() && 
              (widget.existingPlan == null || p.id != widget.existingPlan!.id);
     });
@@ -438,7 +438,7 @@ class _WorkoutCreateScreenState extends State<WorkoutCreateScreen> {
     );
     
     if (widget.existingPlan != null) {
-      savedStrings.removeWhere((s) => WorkoutPlan.fromMap(json.decode(s)).id == widget.existingPlan!.id);
+      savedStrings.removeWhere((s) => WorkoutPlan.fromMap(json.decode(s) as Map<String, dynamic>).id == widget.existingPlan!.id);
     }
     savedStrings.add(json.encode(plan.toMap()));
     await prefs.setStringList('workout_plans', savedStrings);
