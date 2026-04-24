@@ -219,19 +219,19 @@ class _TodoScreenState extends State<TodoScreen> {
                         if (todo.isDaily)
                           Row(
                             children: [
-                              Icon(Icons.repeat, size: 14, color: Colors.blue.withOpacity(0.7)),
+                              Icon(Icons.repeat, size: 14, color: Colors.blue.withValues(alpha: 0.7)),
                               const SizedBox(width: 4),
-                              Text("Daily", style: TextStyle(fontSize: 12, color: Colors.blue.withOpacity(0.7))),
+                              Text("Daily", style: TextStyle(fontSize: 12, color: Colors.blue.withValues(alpha: 0.7))),
                             ],
                           ),
                         if (todo.reminderDateTime != null)
                           Row(
                             children: [
-                              Icon(Icons.alarm, size: 14, color: Colors.orange.withOpacity(0.7)),
+                              Icon(Icons.alarm, size: 14, color: Colors.orange.withValues(alpha: 0.7)),
                               const SizedBox(width: 4),
                               Text(
                                 DateFormat('MMM d, hh:mm a').format(todo.reminderDateTime!),
-                                style: TextStyle(fontSize: 12, color: Colors.orange.withOpacity(0.7)),
+                                style: TextStyle(fontSize: 12, color: Colors.orange.withValues(alpha: 0.7)),
                               ),
                             ],
                           ),

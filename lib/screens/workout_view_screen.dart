@@ -6,8 +6,7 @@ import '../models/exercise.dart';
 import 'workout_create_screen.dart';
 
 class WorkoutViewScreen extends StatefulWidget {
-  final WorkoutPlan? plan; // Optional: view a specific plan
-  const WorkoutViewScreen({super.key, this.plan});
+  const WorkoutViewScreen({super.key});
 
   @override
   State<WorkoutViewScreen> createState() => _WorkoutViewScreenState();
@@ -28,7 +27,11 @@ class _WorkoutViewScreenState extends State<WorkoutViewScreen> {
     final List<String>? plansJson = prefs.getStringList('workout_plans');
     if (plansJson != null) {
       setState(() {
-        _allPlans = plansJson.map((s) => WorkoutPlan.fromMap(json.decode(s))).toList();
+        _allPlans = plansJson.map((s) => WorkoutPlan.fromMap(json.decode(s) as Map<String, dynamic>)).toList();
+      });
+    } else {
+      setState(() {
+        _allPlans = [];
       });
     }
     setState(() => _isLoading = false);
@@ -71,61 +74,156 @@ class _WorkoutViewScreenState extends State<WorkoutViewScreen> {
         return Card(
           margin: const EdgeInsets.only(bottom: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: ExpansionTile(
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
             title: Text(plan.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             subtitle: Text("${plan.dayWorkouts.length} Training Days"),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.edit, size: 20),
-                  onPressed: () async {
-                    final result = await Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => WorkoutCreateScreen(existingPlan: plan)),
-                    );
-                    if (result == true) _loadPlans();
-                  },
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => WorkoutPlanDetailsScreen(
+                    plan: plan,
+                    onUpdate: _loadPlans,
+                  ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.delete, size: 20, color: Colors.red),
-                  onPressed: () => _deletePlan(plan),
-                ),
-              ],
-            ),
-            children: plan.dayWorkouts.map((dw) => _buildDayTile(dw)).toList(),
+              );
+              _loadPlans();
+            },
           ),
         );
       },
     );
   }
+}
 
-  Widget _buildDayTile(DayWorkout dw) {
-    return Theme(
-      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-      child: ExpansionTile(
-        title: Text(dw.day, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
-        subtitle: Text(
-          dw.muscleGroups.map((m) => m.name.toUpperCase()).join(" / "),
-          style: const TextStyle(fontSize: 12, color: Colors.grey),
+class WorkoutPlanDetailsScreen extends StatefulWidget {
+  final WorkoutPlan plan;
+  final VoidCallback onUpdate;
+
+  const WorkoutPlanDetailsScreen({
+    super.key,
+    required this.plan,
+    required this.onUpdate,
+  });
+
+  @override
+  State<WorkoutPlanDetailsScreen> createState() => _WorkoutPlanDetailsScreenState();
+}
+
+class _WorkoutPlanDetailsScreenState extends State<WorkoutPlanDetailsScreen> {
+  Future<void> _deletePlan(BuildContext context) async {
+    final prefs = await SharedPreferences.getInstance();
+    final List<String> plansJson = prefs.getStringList('workout_plans') ?? [];
+    plansJson.removeWhere((s) => WorkoutPlan.fromMap(json.decode(s) as Map<String, dynamic>).id == widget.plan.id);
+    await prefs.setStringList('workout_plans', plansJson);
+    widget.onUpdate();
+    if (context.mounted) Navigator.pop(context);
+  }
+
+  void _showDeleteDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Delete Plan?"),
+        content: const Text(
+          "Are you sure you want to delete this workout plan? You will lose all your progress and your previously well-created plan.",
+          style: TextStyle(height: 1.5),
         ),
-        childrenPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        children: dw.selectedExercises.map((pe) => _buildExerciseCard(pe)).toList(),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _deletePlan(context);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            child: const Text("Yes, Delete"),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildExerciseCard(PlannedExercise pe) {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.plan.name),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => WorkoutCreateScreen(existingPlan: widget.plan)),
+              );
+              if (result == true) {
+                widget.onUpdate();
+                if (context.mounted) Navigator.pop(context);
+              }
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete, color: Colors.red),
+            onPressed: () => _showDeleteDialog(context),
+          ),
+        ],
+      ),
+      body: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: widget.plan.dayWorkouts.length,
+        itemBuilder: (context, index) {
+          final dw = widget.plan.dayWorkouts[index];
+          return _buildDaySection(context, dw);
+        },
+      ),
+    );
+  }
+
+  Widget _buildDaySection(BuildContext context, DayWorkout dw) {
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        initiallyExpanded: true,
+        title: Text(
+          _getFullDayName(dw.day),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.blue),
+        ),
+        subtitle: Text(
+          dw.muscleGroups.map((m) => m.name.toUpperCase()).join(" / "),
+          style: const TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+        childrenPadding: const EdgeInsets.symmetric(vertical: 8),
+        children: dw.selectedExercises.map((pe) => _buildExerciseCard(context, pe)).toList(),
+      ),
+    );
+  }
+
+  String _getFullDayName(String shortDay) {
+    switch (shortDay) {
+      case "Sun": return "Sunday";
+      case "Mon": return "Monday";
+      case "Tue": return "Tuesday";
+      case "Wed": return "Wednesday";
+      case "Thu": return "Thursday";
+      case "Fri": return "Friday";
+      case "Sat": return "Saturday";
+      default: return shortDay;
+    }
+  }
+
+  Widget _buildExerciseCard(BuildContext context, PlannedExercise pe) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       clipBehavior: Clip.antiAlias,
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: SizedBox(
-        height: 120, // Rectangular horizontal card
+        height: 120,
         child: Row(
           children: [
-            // Left Half: Illustration/GIF Placeholder
             Expanded(
               flex: 1,
               child: Container(
@@ -137,7 +235,7 @@ class _WorkoutViewScreenState extends State<WorkoutViewScreen> {
                       Icon(
                         _getIcon(pe.exercise.muscleGroup),
                         size: 48,
-                        color: Colors.blue.withOpacity(0.4),
+                        color: Colors.blue.withValues(alpha: 0.4),
                       ),
                       const SizedBox(height: 4),
                       const Text(
@@ -149,7 +247,6 @@ class _WorkoutViewScreenState extends State<WorkoutViewScreen> {
                 ),
               ),
             ),
-            // Right Half: Details
             Expanded(
               flex: 1,
               child: Padding(
@@ -202,13 +299,5 @@ class _WorkoutViewScreenState extends State<WorkoutViewScreen> {
       case MuscleGroup.triceps: return Icons.hardware;
       case MuscleGroup.abs: return Icons.grid_view;
     }
-  }
-
-  Future<void> _deletePlan(WorkoutPlan plan) async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _allPlans.removeWhere((p) => p.id == plan.id);
-      prefs.setStringList('workout_plans', _allPlans.map((p) => json.encode(p.toMap())).toList());
-    });
   }
 }

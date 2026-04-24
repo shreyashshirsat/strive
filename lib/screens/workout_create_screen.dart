@@ -18,21 +18,57 @@ class _WorkoutCreateScreenState extends State<WorkoutCreateScreen> {
   int _phase = 0; // 0: Name/Days, 1: Details
   final Map<String, DayConfig> _dayConfigs = {};
   int _currentEditingDayIndex = 0;
-  final TextEditingController _nameController = TextEditingController(text: "New Workout Plan");
+  final TextEditingController _nameController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    _initName();
     if (widget.existingPlan != null) {
       _nameController.text = widget.existingPlan!.name;
       for (var dw in widget.existingPlan!.dayWorkouts) {
         _selectedDays.add(dw.day);
-        _dayConfigs[dw.day] = DayConfig();
-        _dayConfigs[dw.day]!.isDoubleMuscle = dw.muscleGroups.length > 1;
-        _dayConfigs[dw.day]!.equipment = dw.isGymWorkout ? Equipment.machines : Equipment.dumbbells;
-        _dayConfigs[dw.day]!.selectedMuscleGroups = dw.muscleGroups.toSet();
-        _dayConfigs[dw.day]!.selectedExercises = dw.selectedExercises.toSet();
+        final config = DayConfig();
+        config.isDoubleMuscle = dw.muscleGroups.length > 1;
+        config.equipment = dw.isGymWorkout ? Equipment.machines : Equipment.dumbbells;
+        config.selectedMuscleGroups = dw.muscleGroups.toSet();
+        config.selectedExercises = dw.selectedExercises.toSet();
+        _dayConfigs[dw.day] = config;
       }
+    }
+  }
+
+  Future<void> _initName() async {
+    if (widget.existingPlan == null) {
+      final prefs = await SharedPreferences.getInstance();
+      final List<String> savedStrings = prefs.getStringList('workout_plans') ?? [];
+      int count = savedStrings.length + 1;
+      
+      String defaultName = "Workout Plan $count";
+      bool nameExists = savedStrings.any((s) => WorkoutPlan.fromMap(json.decode(s)).name == defaultName);
+      
+      while (nameExists) {
+        count++;
+        defaultName = "Workout Plan $count";
+        nameExists = savedStrings.any((s) => WorkoutPlan.fromMap(json.decode(s)).name == defaultName);
+      }
+      
+      setState(() {
+        _nameController.text = defaultName;
+      });
+    }
+  }
+
+  String _getFullDayName(String shortDay) {
+    switch (shortDay) {
+      case "Sun": return "Sunday";
+      case "Mon": return "Monday";
+      case "Tue": return "Tuesday";
+      case "Wed": return "Wednesday";
+      case "Thu": return "Thursday";
+      case "Fri": return "Friday";
+      case "Sat": return "Saturday";
+      default: return shortDay;
     }
   }
 
@@ -109,6 +145,7 @@ class _WorkoutCreateScreenState extends State<WorkoutCreateScreen> {
   Widget _buildDayConfiguration() {
     List<String> selectedList = _getSelectedDaysList();
     String day = selectedList[_currentEditingDayIndex];
+    String fullDayName = _getFullDayName(day);
     DayConfig config = _dayConfigs[day]!;
 
     return SingleChildScrollView(
@@ -116,7 +153,7 @@ class _WorkoutCreateScreenState extends State<WorkoutCreateScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("Configure $day", style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          Text("Configure $fullDayName", style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
           const SizedBox(height: 24),
           const Text("Muscle Group Count:", style: TextStyle(fontWeight: FontWeight.bold)),
           Row(
@@ -327,6 +364,22 @@ class _WorkoutCreateScreenState extends State<WorkoutCreateScreen> {
     final prefs = await SharedPreferences.getInstance();
     final List<String> savedStrings = prefs.getStringList('workout_plans') ?? [];
     
+    // Check for unique name
+    bool nameExists = savedStrings.any((s) {
+      final p = WorkoutPlan.fromMap(json.decode(s));
+      return p.name.trim().toLowerCase() == _nameController.text.trim().toLowerCase() && 
+             (widget.existingPlan == null || p.id != widget.existingPlan!.id);
+    });
+
+    if (nameExists) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("A plan with this name already exists. Please choose a different name.")),
+        );
+      }
+      return;
+    }
+
     List<DayWorkout> dws = [];
     for (var day in _getSelectedDaysList()) {
       var config = _dayConfigs[day]!;

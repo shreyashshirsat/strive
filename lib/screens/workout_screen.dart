@@ -22,9 +22,11 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   Future<void> _loadPlanCount() async {
     final prefs = await SharedPreferences.getInstance();
     final List<String>? plans = prefs.getStringList('workout_plans');
-    setState(() {
-      _planCount = plans?.length ?? 0;
-    });
+    if (mounted) {
+      setState(() {
+        _planCount = plans?.length ?? 0;
+      });
+    }
   }
 
   @override
@@ -47,11 +49,12 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                   : "You have $_planCount active workout plans",
               icon: Icons.assignment_outlined,
               color: Colors.orange.shade700,
-              onTap: () {
-                Navigator.push(
+              onTap: () async {
+                await Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const WorkoutViewScreen()),
-                ).then((_) => _loadPlanCount());
+                );
+                _loadPlanCount();
               },
             ),
             const SizedBox(height: 24),
@@ -102,9 +105,9 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
       child: Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withOpacity(0.3), width: 2),
+          border: Border.all(color: color.withValues(alpha: 0.3), width: 2),
         ),
         child: Column(
           children: [
