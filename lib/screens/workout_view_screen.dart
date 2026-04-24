@@ -2,49 +2,50 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/workout_plan.dart';
+import '../models/exercise.dart';
+import 'workout_create_screen.dart';
 
 class WorkoutViewScreen extends StatefulWidget {
-  const WorkoutViewScreen({super.key});
+  final WorkoutPlan? plan; // Optional: view a specific plan
+  const WorkoutViewScreen({super.key, this.plan});
 
   @override
   State<WorkoutViewScreen> createState() => _WorkoutViewScreenState();
 }
 
 class _WorkoutViewScreenState extends State<WorkoutViewScreen> {
-  WorkoutPlan? _plan;
+  List<WorkoutPlan> _allPlans = [];
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadPlan();
+    _loadPlans();
   }
 
-  Future<void> _loadPlan() async {
+  Future<void> _loadPlans() async {
     final prefs = await SharedPreferences.getInstance();
-    final String? planJson = prefs.getString('workout_plan');
-    if (planJson != null) {
+    final List<String>? plansJson = prefs.getStringList('workout_plans');
+    if (plansJson != null) {
       setState(() {
-        _plan = WorkoutPlan.fromMap(json.decode(planJson));
+        _allPlans = plansJson.map((s) => WorkoutPlan.fromMap(json.decode(s))).toList();
       });
     }
-    setState(() {
-      _isLoading = false;
-    });
+    setState(() => _isLoading = false);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("My Workout Plan"),
+        title: const Text("My Workout Plans"),
         centerTitle: true,
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _plan == null
+          : _allPlans.isEmpty
               ? _buildEmptyState()
-              : _buildPlanList(),
+              : _buildPlansList(),
     );
   }
 
@@ -55,97 +56,159 @@ class _WorkoutViewScreenState extends State<WorkoutViewScreen> {
         children: [
           Icon(Icons.fitness_center, size: 80, color: Colors.grey.shade300),
           const SizedBox(height: 16),
-          const Text(
-            "No workout plan created yet.",
-            style: TextStyle(color: Colors.grey, fontSize: 16),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Go Back to Create"),
-          ),
+          const Text("No workout plans created yet.", style: TextStyle(color: Colors.grey)),
         ],
       ),
     );
   }
 
-  Widget _buildPlanList() {
+  Widget _buildPlansList() {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: _plan!.dayWorkouts.length,
+      itemCount: _allPlans.length,
       itemBuilder: (context, index) {
-        final dayWorkout = _plan!.dayWorkouts[index];
+        final plan = _allPlans[index];
         return Card(
-          margin: const EdgeInsets.only(bottom: 20),
+          margin: const EdgeInsets.only(bottom: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: ExpansionTile(
-            initiallyExpanded: true,
-            leading: CircleAvatar(
-              backgroundColor: Colors.blue.shade100,
-              child: Text(
-                dayWorkout.day[0],
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-            title: Text(
-              dayWorkout.day,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-            ),
-            subtitle: Text(
-              dayWorkout.muscleGroups.map((m) => m.name.toUpperCase()).join(" & "),
-              style: TextStyle(color: Colors.blue.shade700, fontWeight: FontWeight.w500),
-            ),
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          dayWorkout.isGymWorkout ? Icons.business : Icons.home,
-                          size: 16,
-                          color: Colors.grey,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          dayWorkout.isGymWorkout ? "Gym / Machines" : "Home / Dumbbells",
-                          style: const TextStyle(color: Colors.grey, fontSize: 12),
-                        ),
-                      ],
-                    ),
-                    const Divider(height: 24),
-                    const Text(
-                      "Exercises:",
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                    ),
-                    const SizedBox(height: 8),
-                    ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: dayWorkout.selectedExercises.length,
-                      itemBuilder: (context, exIndex) {
-                        final ex = dayWorkout.selectedExercises[exIndex];
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.arrow_right, color: Colors.blue),
-                              const SizedBox(width: 8),
-                              Text(ex.name, style: const TextStyle(fontSize: 15)),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  ],
+            title: Text(plan.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            subtitle: Text("${plan.dayWorkouts.length} Training Days"),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.edit, size: 20),
+                  onPressed: () async {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => WorkoutCreateScreen(existingPlan: plan)),
+                    );
+                    if (result == true) _loadPlans();
+                  },
                 ),
-              )
-            ],
+                IconButton(
+                  icon: const Icon(Icons.delete, size: 20, color: Colors.red),
+                  onPressed: () => _deletePlan(plan),
+                ),
+              ],
+            ),
+            children: plan.dayWorkouts.map((dw) => _buildDayTile(dw)).toList(),
           ),
         );
       },
     );
+  }
+
+  Widget _buildDayTile(DayWorkout dw) {
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        title: Text(dw.day, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+        subtitle: Text(
+          dw.muscleGroups.map((m) => m.name.toUpperCase()).join(" / "),
+          style: const TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+        childrenPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        children: dw.selectedExercises.map((pe) => _buildExerciseCard(pe)).toList(),
+      ),
+    );
+  }
+
+  Widget _buildExerciseCard(PlannedExercise pe) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      clipBehavior: Clip.antiAlias,
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: SizedBox(
+        height: 120, // Rectangular horizontal card
+        child: Row(
+          children: [
+            // Left Half: Illustration/GIF Placeholder
+            Expanded(
+              flex: 1,
+              child: Container(
+                color: Colors.grey.shade100,
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        _getIcon(pe.exercise.muscleGroup),
+                        size: 48,
+                        color: Colors.blue.withOpacity(0.4),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        "GIF Placeholder",
+                        style: TextStyle(fontSize: 10, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            // Right Half: Details
+            Expanded(
+              flex: 1,
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      pe.exercise.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        pe.exercise.isTimed 
+                          ? "${pe.minutes}m ${pe.seconds}s" 
+                          : "${pe.sets} Sets x ${pe.reps} Reps",
+                        style: TextStyle(
+                          color: Colors.blue.shade700,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  IconData _getIcon(MuscleGroup g) {
+    switch(g) {
+      case MuscleGroup.chest: return Icons.fitness_center;
+      case MuscleGroup.back: return Icons.accessibility_new;
+      case MuscleGroup.legs: return Icons.directions_run;
+      case MuscleGroup.shoulders: return Icons.hdr_strong;
+      case MuscleGroup.biceps: return Icons.handyman;
+      case MuscleGroup.triceps: return Icons.hardware;
+      case MuscleGroup.abs: return Icons.grid_view;
+    }
+  }
+
+  Future<void> _deletePlan(WorkoutPlan plan) async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _allPlans.removeWhere((p) => p.id == plan.id);
+      prefs.setStringList('workout_plans', _allPlans.map((p) => json.encode(p.toMap())).toList());
+    });
   }
 }

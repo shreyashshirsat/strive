@@ -3,7 +3,7 @@ import 'exercise.dart';
 class DayWorkout {
   final String day;
   final List<MuscleGroup> muscleGroups;
-  final List<Exercise> selectedExercises;
+  final List<PlannedExercise> selectedExercises;
   final bool isGymWorkout;
 
   DayWorkout({
@@ -26,25 +26,35 @@ class DayWorkout {
     return DayWorkout(
       day: map['day'],
       muscleGroups: (map['muscleGroups'] as List).map((e) => MuscleGroup.values[e]).toList(),
-      selectedExercises: (map['selectedExercises'] as List).map((e) => Exercise.fromMap(e)).toList(),
+      selectedExercises: (map['selectedExercises'] as List).map((e) => PlannedExercise.fromMap(e)).toList(),
       isGymWorkout: map['isGymWorkout'],
     );
   }
 }
 
 class WorkoutPlan {
+  final String id;
+  String name;
   final List<DayWorkout> dayWorkouts;
 
-  WorkoutPlan({required this.dayWorkouts});
+  WorkoutPlan({
+    required this.id,
+    required this.name,
+    required this.dayWorkouts,
+  });
 
   Map<String, dynamic> toMap() {
     return {
+      'id': id,
+      'name': name,
       'dayWorkouts': dayWorkouts.map((e) => e.toMap()).toList(),
     };
   }
 
   factory WorkoutPlan.fromMap(Map<String, dynamic> map) {
     return WorkoutPlan(
+      id: map['id'],
+      name: map['name'] ?? 'Workout Plan',
       dayWorkouts: (map['dayWorkouts'] as List).map((e) => DayWorkout.fromMap(e)).toList(),
     );
   }

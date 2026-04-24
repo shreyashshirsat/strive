@@ -11,18 +11,19 @@ class WorkoutScreen extends StatefulWidget {
 }
 
 class _WorkoutScreenState extends State<WorkoutScreen> {
-  bool _hasPlan = false;
+  int _planCount = 0;
 
   @override
   void initState() {
     super.initState();
-    _checkPlan();
+    _loadPlanCount();
   }
 
-  Future<void> _checkPlan() async {
+  Future<void> _loadPlanCount() async {
     final prefs = await SharedPreferences.getInstance();
+    final List<String>? plans = prefs.getStringList('workout_plans');
     setState(() {
-      _hasPlan = prefs.containsKey('workout_plan');
+      _planCount = plans?.length ?? 0;
     });
   }
 
@@ -38,35 +39,34 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (_hasPlan) ...[
-              _buildOptionCard(
-                context,
-                title: "View My Plan",
-                subtitle: "Check your current workout routine",
-                icon: Icons.assignment_outlined,
-                color: Colors.orange.shade700,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const WorkoutViewScreen()),
-                  ).then((_) => _checkPlan());
-                },
-              ),
-              const SizedBox(height: 24),
-            ],
             _buildOptionCard(
               context,
-              title: _hasPlan ? "Re-create Plan" : "Create your workout",
-              subtitle: _hasPlan 
-                ? "Start over with a new routine" 
-                : "Build a custom plan tailored to your goals",
-              icon: Icons.add_circle_outline,
-              color: Colors.blue.shade700,
+              title: "View My Plans",
+              subtitle: _planCount == 0 
+                  ? "You haven't created any plans yet" 
+                  : "You have $_planCount active workout plans",
+              icon: Icons.assignment_outlined,
+              color: Colors.orange.shade700,
               onTap: () {
                 Navigator.push(
                   context,
+                  MaterialPageRoute(builder: (context) => const WorkoutViewScreen()),
+                ).then((_) => _loadPlanCount());
+              },
+            ),
+            const SizedBox(height: 24),
+            _buildOptionCard(
+              context,
+              title: "Create New Plan",
+              subtitle: "Build a custom routine with sets and reps",
+              icon: Icons.add_circle_outline,
+              color: Colors.blue.shade700,
+              onTap: () async {
+                final result = await Navigator.push(
+                  context,
                   MaterialPageRoute(builder: (context) => const WorkoutCreateScreen()),
-                ).then((_) => _checkPlan());
+                );
+                if (result == true) _loadPlanCount();
               },
             ),
             const SizedBox(height: 24),
@@ -82,15 +82,6 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                 );
               },
             ),
-            if (!_hasPlan) ...[
-              const SizedBox(height: 40),
-              const Center(
-                child: Text(
-                  "You haven't created a workout plan yet.",
-                  style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
-                ),
-              ),
-            ],
           ],
         ),
       ),

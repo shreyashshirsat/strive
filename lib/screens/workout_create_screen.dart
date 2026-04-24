@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/exercise.dart';
 import '../models/workout_plan.dart';
-import 'workout_view_screen.dart';
 
 class WorkoutCreateScreen extends StatefulWidget {
-  const WorkoutCreateScreen({super.key});
+  final WorkoutPlan? existingPlan;
+  const WorkoutCreateScreen({super.key, this.existingPlan});
 
   @override
   State<WorkoutCreateScreen> createState() => _WorkoutCreateScreenState();
@@ -15,33 +15,57 @@ class WorkoutCreateScreen extends StatefulWidget {
 class _WorkoutCreateScreenState extends State<WorkoutCreateScreen> {
   final List<String> _allDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   final Set<String> _selectedDays = {};
-  int _phase = 0;
+  int _phase = 0; // 0: Name/Days, 1: Details
   final Map<String, DayConfig> _dayConfigs = {};
   int _currentEditingDayIndex = 0;
+  final TextEditingController _nameController = TextEditingController(text: "New Workout Plan");
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.existingPlan != null) {
+      _nameController.text = widget.existingPlan!.name;
+      for (var dw in widget.existingPlan!.dayWorkouts) {
+        _selectedDays.add(dw.day);
+        _dayConfigs[dw.day] = DayConfig();
+        _dayConfigs[dw.day]!.isDoubleMuscle = dw.muscleGroups.length > 1;
+        _dayConfigs[dw.day]!.equipment = dw.isGymWorkout ? Equipment.machines : Equipment.dumbbells;
+        _dayConfigs[dw.day]!.selectedMuscleGroups = dw.muscleGroups.toSet();
+        _dayConfigs[dw.day]!.selectedExercises = dw.selectedExercises.toSet();
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_phase == 0 ? "Select Days" : "Plan Your Workout"),
+        title: Text(_phase == 0 ? "Create Workout" : "Plan Details"),
         centerTitle: true,
       ),
-      body: _phase == 0 ? _buildDaysSelection() : _buildDayConfiguration(),
+      body: _phase == 0 ? _buildInitialSetup() : _buildDayConfiguration(),
       bottomNavigationBar: _buildBottomBar(),
     );
   }
 
-  Widget _buildDaysSelection() {
-    return Padding(
+  Widget _buildInitialSetup() {
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            "Which days do you want to workout?",
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          const Text("Plan Name", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _nameController,
+            decoration: const InputDecoration(
+              hintText: "e.g. Summer Shred",
+              border: OutlineInputBorder(),
+            ),
           ),
           const SizedBox(height: 32),
+          const Text("Select Training Days", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: _allDays.map((day) {
@@ -84,10 +108,6 @@ class _WorkoutCreateScreenState extends State<WorkoutCreateScreen> {
 
   Widget _buildDayConfiguration() {
     List<String> selectedList = _getSelectedDaysList();
-    if (_currentEditingDayIndex >= selectedList.length) {
-      return const Center(child: Text("Workout Creation Complete!"));
-    }
-    
     String day = selectedList[_currentEditingDayIndex];
     DayConfig config = _dayConfigs[day]!;
 
@@ -96,62 +116,56 @@ class _WorkoutCreateScreenState extends State<WorkoutCreateScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            "Configure $day",
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
+          Text("Configure $day", style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
           const SizedBox(height: 24),
-          
           const Text("Muscle Group Count:", style: TextStyle(fontWeight: FontWeight.bold)),
           Row(
             children: [
-              _buildChoiceChip("Single Muscle", config.isDoubleMuscle == false, () {
-                setState(() {
-                  config.isDoubleMuscle = false;
-                  if (config.selectedMuscleGroups.isNotEmpty) {
-                    config.selectedMuscleGroups = {config.selectedMuscleGroups.first};
-                  }
-                });
-              }),
+              ChoiceChip(
+                label: const Text("Single"),
+                selected: !config.isDoubleMuscle,
+                onSelected: (_) => setState(() => config.isDoubleMuscle = false),
+              ),
               const SizedBox(width: 12),
-              _buildChoiceChip("Double Muscle", config.isDoubleMuscle == true, () {
-                setState(() => config.isDoubleMuscle = true);
-              }),
+              ChoiceChip(
+                label: const Text("Double"),
+                selected: config.isDoubleMuscle,
+                onSelected: (_) => setState(() => config.isDoubleMuscle = true),
+              ),
             ],
           ),
           const SizedBox(height: 24),
-
-          const Text("Equipment Preference:", style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text("Equipment:", style: TextStyle(fontWeight: FontWeight.bold)),
           Row(
             children: [
-              _buildChoiceChip("Home (Dumbbells)", config.equipment == Equipment.dumbbells, () {
-                setState(() => config.equipment = Equipment.dumbbells);
-              }),
+              ChoiceChip(
+                label: const Text("Dumbbells"),
+                selected: config.equipment == Equipment.dumbbells,
+                onSelected: (_) => setState(() => config.equipment = Equipment.dumbbells),
+              ),
               const SizedBox(width: 12),
-              _buildChoiceChip("Gym (Machines)", config.equipment == Equipment.machines, () {
-                setState(() => config.equipment = Equipment.machines);
-              }),
+              ChoiceChip(
+                label: const Text("Machines"),
+                selected: config.equipment == Equipment.machines,
+                onSelected: (_) => setState(() => config.equipment = Equipment.machines),
+              ),
             ],
           ),
           const SizedBox(height: 24),
-
-          const Text("Select Muscle Group(s):", style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
+          const Text("Muscle Groups:", style: TextStyle(fontWeight: FontWeight.bold)),
           Wrap(
             spacing: 8,
             children: MuscleGroup.values.map((mg) {
-              bool isSelected = config.selectedMuscleGroups.contains(mg);
               return FilterChip(
                 label: Text(mg.name.toUpperCase()),
-                selected: isSelected,
+                selected: config.selectedMuscleGroups.contains(mg),
                 onSelected: (selected) {
                   setState(() {
                     if (selected) {
                       if (config.isDoubleMuscle && config.selectedMuscleGroups.length < 2) {
                         config.selectedMuscleGroups.add(mg);
                       } else if (!config.isDoubleMuscle) {
-                        config.selectedMuscleGroups.clear();
-                        config.selectedMuscleGroups.add(mg);
+                        config.selectedMuscleGroups = {mg};
                       }
                     } else {
                       config.selectedMuscleGroups.remove(mg);
@@ -161,7 +175,6 @@ class _WorkoutCreateScreenState extends State<WorkoutCreateScreen> {
               );
             }).toList(),
           ),
-          
           if (config.selectedMuscleGroups.isNotEmpty) ...[
             const SizedBox(height: 32),
             const Text("Select Exercises:", style: TextStyle(fontWeight: FontWeight.bold)),
@@ -174,72 +187,43 @@ class _WorkoutCreateScreenState extends State<WorkoutCreateScreen> {
   }
 
   Widget _buildExerciseGrid(DayConfig config) {
-    final filteredExercises = exerciseLibrary.where((ex) =>
+    final filtered = exerciseLibrary.where((ex) =>
         config.selectedMuscleGroups.contains(ex.muscleGroup) &&
         (ex.equipment == config.equipment || ex.equipment == Equipment.bodyweight)).toList();
-
-    if (filteredExercises.isEmpty) {
-      return const Text("No exercises found for these settings.", style: TextStyle(color: Colors.grey));
-    }
 
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 0.85,
+        crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 0.75,
       ),
-      itemCount: filteredExercises.length,
+      itemCount: filtered.length,
       itemBuilder: (context, index) {
-        final ex = filteredExercises[index];
-        bool isSelected = config.selectedExercises.contains(ex);
+        final ex = filtered[index];
+        final plannedEx = config.getPlanned(ex);
+        bool isSelected = plannedEx != null;
+        
         return InkWell(
-          onTap: () {
-            setState(() {
-              if (isSelected) {
-                config.selectedExercises.remove(ex);
-              } else {
-                config.selectedExercises.add(ex);
-              }
-            });
-          },
+          onTap: () => _showExerciseDetailsDialog(ex, config),
           child: Card(
             elevation: isSelected ? 4 : 1,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
-              side: isSelected ? BorderSide(color: Theme.of(context).primaryColor, width: 2) : BorderSide.none,
+              side: isSelected ? const BorderSide(color: Colors.blue, width: 2) : BorderSide.none,
             ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                    ),
-                    child: Icon(
-                      _getExerciseIcon(ex.muscleGroup),
-                      size: 40,
-                      color: isSelected ? Theme.of(context).primaryColor : Colors.grey,
-                    ),
-                  ),
-                ),
+                Expanded(child: Icon(_getIcon(ex.muscleGroup), size: 40, color: isSelected ? Colors.blue : Colors.grey)),
                 Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: Column(
                     children: [
-                      Text(
-                        ex.name,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (isSelected)
-                        const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                      Text(ex.name, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      if (isSelected) ...[
+                        const SizedBox(height: 4),
+                        Text(ex.isTimed ? "${plannedEx.minutes}m ${plannedEx.seconds}s" : "${plannedEx.sets} x ${plannedEx.reps}",
+                            style: const TextStyle(fontSize: 11, color: Colors.blue)),
+                      ]
                     ],
                   ),
                 ),
@@ -251,8 +235,60 @@ class _WorkoutCreateScreenState extends State<WorkoutCreateScreen> {
     );
   }
 
-  IconData _getExerciseIcon(MuscleGroup group) {
-    switch (group) {
+  void _showExerciseDetailsDialog(Exercise ex, DayConfig config) {
+    PlannedExercise? existing = config.getPlanned(ex);
+    final setsController = TextEditingController(text: existing?.sets?.toString() ?? "3");
+    final repsController = TextEditingController(text: existing?.reps?.toString() ?? "12");
+    final minsController = TextEditingController(text: existing?.minutes?.toString() ?? "1");
+    final secsController = TextEditingController(text: existing?.seconds?.toString() ?? "0");
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(ex.name),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (ex.isTimed) ...[
+              Row(children: [
+                Expanded(child: TextField(controller: minsController, decoration: const InputDecoration(labelText: "Mins"), keyboardType: TextInputType.number)),
+                const SizedBox(width: 12),
+                Expanded(child: TextField(controller: secsController, decoration: const InputDecoration(labelText: "Secs"), keyboardType: TextInputType.number)),
+              ])
+            ] else ...[
+              Row(children: [
+                Expanded(child: TextField(controller: setsController, decoration: const InputDecoration(labelText: "Sets"), keyboardType: TextInputType.number)),
+                const SizedBox(width: 12),
+                Expanded(child: TextField(controller: repsController, decoration: const InputDecoration(labelText: "Reps"), keyboardType: TextInputType.number)),
+              ])
+            ]
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () {
+            setState(() => config.selectedExercises.removeWhere((p) => p.exercise.name == ex.name));
+            Navigator.pop(context);
+          }, child: const Text("Remove", style: TextStyle(color: Colors.red))),
+          ElevatedButton(onPressed: () {
+            setState(() {
+              config.selectedExercises.removeWhere((p) => p.exercise.name == ex.name);
+              config.selectedExercises.add(PlannedExercise(
+                exercise: ex,
+                sets: int.tryParse(setsController.text),
+                reps: int.tryParse(repsController.text),
+                minutes: int.tryParse(minsController.text),
+                seconds: int.tryParse(secsController.text),
+              ));
+            });
+            Navigator.pop(context);
+          }, child: const Text("Save")),
+        ],
+      ),
+    );
+  }
+
+  IconData _getIcon(MuscleGroup g) {
+    switch(g) {
       case MuscleGroup.chest: return Icons.fitness_center;
       case MuscleGroup.back: return Icons.accessibility_new;
       case MuscleGroup.legs: return Icons.directions_run;
@@ -263,84 +299,57 @@ class _WorkoutCreateScreenState extends State<WorkoutCreateScreen> {
     }
   }
 
-  Widget _buildChoiceChip(String label, bool isSelected, VoidCallback onTap) {
-    return ChoiceChip(
-      label: Text(label),
-      selected: isSelected,
-      onSelected: (_) => onTap(),
-      selectedColor: Colors.blue.withOpacity(0.2),
-      checkmarkColor: Colors.blue,
-    );
-  }
-
-  List<String> _getSelectedDaysList() {
-    return _allDays.where((day) => _selectedDays.contains(day)).toList();
-  }
+  List<String> _getSelectedDaysList() => _allDays.where((day) => _selectedDays.contains(day)).toList();
 
   Widget _buildBottomBar() {
-    bool canProceed = false;
-    if (_phase == 0) {
-      canProceed = _selectedDays.isNotEmpty;
-    } else {
-      List<String> selectedList = _getSelectedDaysList();
-      String currentDay = selectedList[_currentEditingDayIndex];
-      DayConfig config = _dayConfigs[currentDay]!;
-      canProceed = config.selectedMuscleGroups.isNotEmpty && config.selectedExercises.isNotEmpty;
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(20),
+    bool canProceed = _phase == 0 ? _selectedDays.isNotEmpty : true;
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
       child: ElevatedButton(
-        onPressed: canProceed ? _handleNext : null,
-        style: ElevatedButton.styleFrom(
-          minimumSize: const Size.fromHeight(50),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-        child: Text(_phase == 0 ? "Start Planning" : (_currentEditingDayIndex < _getSelectedDaysList().length - 1 ? "Next Day" : "Finish Workout Plan")),
+        onPressed: canProceed ? () {
+          setState(() {
+            if (_phase == 0) {
+              _phase = 1;
+            } else if (_currentEditingDayIndex < _getSelectedDaysList().length - 1) {
+              _currentEditingDayIndex++;
+            } else {
+              _savePlan();
+            }
+          });
+        } : null,
+        style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+        child: Text(_phase == 0 ? "Next" : (_currentEditingDayIndex < _getSelectedDaysList().length - 1 ? "Next Day" : "Save Plan")),
       ),
     );
   }
 
-  Future<void> _handleNext() async {
-    if (_phase == 0) {
-      setState(() {
-        _phase = 1;
-      });
-    } else {
-      if (_currentEditingDayIndex < _getSelectedDaysList().length - 1) {
-        setState(() {
-          _currentEditingDayIndex++;
-        });
-      } else {
-        // Save Workout Plan
-        await _saveWorkoutPlan();
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const WorkoutViewScreen()),
-          );
-        }
-      }
-    }
-  }
-
-  Future<void> _saveWorkoutPlan() async {
+  Future<void> _savePlan() async {
     final prefs = await SharedPreferences.getInstance();
-    List<DayWorkout> dayWorkouts = [];
+    final List<String> savedStrings = prefs.getStringList('workout_plans') ?? [];
     
-    for (String day in _getSelectedDaysList()) {
-      DayConfig config = _dayConfigs[day]!;
-      dayWorkouts.add(DayWorkout(
-        day: day,
-        muscleGroups: config.selectedMuscleGroups.toList(),
-        selectedExercises: config.selectedExercises.toList(),
-        isGymWorkout: config.equipment == Equipment.machines,
+    List<DayWorkout> dws = [];
+    for (var day in _getSelectedDaysList()) {
+      var config = _dayConfigs[day]!;
+      dws.add(DayWorkout(
+        day: day, 
+        muscleGroups: config.selectedMuscleGroups.toList(), 
+        selectedExercises: config.selectedExercises.toList(), 
+        isGymWorkout: config.equipment == Equipment.machines
       ));
     }
 
-    WorkoutPlan plan = WorkoutPlan(dayWorkouts: dayWorkouts);
-    String planJson = json.encode(plan.toMap());
-    await prefs.setString('workout_plan', planJson);
+    final plan = WorkoutPlan(
+      id: widget.existingPlan?.id ?? DateTime.now().toString(), 
+      name: _nameController.text, 
+      dayWorkouts: dws
+    );
+    
+    if (widget.existingPlan != null) {
+      savedStrings.removeWhere((s) => WorkoutPlan.fromMap(json.decode(s)).id == widget.existingPlan!.id);
+    }
+    savedStrings.add(json.encode(plan.toMap()));
+    await prefs.setStringList('workout_plans', savedStrings);
+    if (mounted) Navigator.pop(context, true);
   }
 }
 
@@ -348,5 +357,6 @@ class DayConfig {
   bool isDoubleMuscle = false;
   Equipment equipment = Equipment.dumbbells;
   Set<MuscleGroup> selectedMuscleGroups = {};
-  Set<Exercise> selectedExercises = {};
+  Set<PlannedExercise> selectedExercises = {};
+  PlannedExercise? getPlanned(Exercise ex) => selectedExercises.cast<PlannedExercise?>().firstWhere((p) => p?.exercise.name == ex.name, orElse: () => null);
 }

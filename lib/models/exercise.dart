@@ -6,13 +6,13 @@ class Exercise {
   final String name;
   final MuscleGroup muscleGroup;
   final Equipment equipment;
-  final String? imagePath; // Optional path for illustration
+  final bool isTimed;
 
   const Exercise({
     required this.name,
     required this.muscleGroup,
     required this.equipment,
-    this.imagePath,
+    this.isTimed = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -20,6 +20,7 @@ class Exercise {
       'name': name,
       'muscleGroup': muscleGroup.index,
       'equipment': equipment.index,
+      'isTimed': isTimed,
     };
   }
 
@@ -30,7 +31,44 @@ class Exercise {
         name: map['name'],
         muscleGroup: MuscleGroup.values[map['muscleGroup']],
         equipment: Equipment.values[map['equipment']],
+        isTimed: map['isTimed'] ?? false,
       ),
+    );
+  }
+}
+
+class PlannedExercise {
+  final Exercise exercise;
+  int? sets;
+  int? reps;
+  int? minutes;
+  int? seconds;
+
+  PlannedExercise({
+    required this.exercise,
+    this.sets,
+    this.reps,
+    this.minutes,
+    this.seconds,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'exercise': exercise.toMap(),
+      'sets': sets,
+      'reps': reps,
+      'minutes': minutes,
+      'seconds': seconds,
+    };
+  }
+
+  factory PlannedExercise.fromMap(Map<String, dynamic> map) {
+    return PlannedExercise(
+      exercise: Exercise.fromMap(map['exercise']),
+      sets: map['sets'],
+      reps: map['reps'],
+      minutes: map['minutes'],
+      seconds: map['seconds'],
     );
   }
 }
@@ -78,7 +116,7 @@ const List<Exercise> exerciseLibrary = [
   Exercise(name: 'Tricep Pushdown', muscleGroup: MuscleGroup.triceps, equipment: Equipment.machines),
 
   // Abs
-  Exercise(name: 'Plank', muscleGroup: MuscleGroup.abs, equipment: Equipment.bodyweight),
+  Exercise(name: 'Plank', muscleGroup: MuscleGroup.abs, equipment: Equipment.bodyweight, isTimed: true),
   Exercise(name: 'Crunches', muscleGroup: MuscleGroup.abs, equipment: Equipment.bodyweight),
   Exercise(name: 'Leg Raises', muscleGroup: MuscleGroup.abs, equipment: Equipment.bodyweight),
 ];
