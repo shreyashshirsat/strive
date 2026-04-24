@@ -80,7 +80,68 @@ class _WorkoutCreateScreenState extends State<WorkoutCreateScreen> {
         centerTitle: true,
       ),
       body: _phase == 0 ? _buildInitialSetup() : _buildDayConfiguration(),
-      bottomNavigationBar: _buildBottomBar(),
+      bottomNavigationBar: _buildNavigationButtons(),
+    );
+  }
+
+  Widget _buildNavigationButtons() {
+    bool canProceed = _phase == 0 ? _selectedDays.isNotEmpty : true;
+    List<String> selectedList = _getSelectedDaysList();
+
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_phase == 1) ...[
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () {
+                  setState(() {
+                    if (_currentEditingDayIndex > 0) {
+                      _currentEditingDayIndex--;
+                    } else {
+                      _phase = 0;
+                    }
+                  });
+                },
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(50),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: Text(_currentEditingDayIndex > 0 ? "Previous Day" : "Back"),
+              ),
+            ),
+            const SizedBox(width: 12),
+          ],
+          Expanded(
+            child: ElevatedButton(
+              onPressed: canProceed
+                  ? () {
+                      setState(() {
+                        if (_phase == 0) {
+                          _phase = 1;
+                        } else if (_currentEditingDayIndex < selectedList.length - 1) {
+                          _currentEditingDayIndex++;
+                        } else {
+                          _savePlan();
+                        }
+                      });
+                    }
+                  : null,
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size.fromHeight(50),
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: Text(_phase == 0
+                  ? "Next"
+                  : (_currentEditingDayIndex < selectedList.length - 1 ? "Next Day" : "Save Plan")),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -338,27 +399,6 @@ class _WorkoutCreateScreenState extends State<WorkoutCreateScreen> {
 
   List<String> _getSelectedDaysList() => _allDays.where((day) => _selectedDays.contains(day)).toList();
 
-  Widget _buildBottomBar() {
-    bool canProceed = _phase == 0 ? _selectedDays.isNotEmpty : true;
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: ElevatedButton(
-        onPressed: canProceed ? () {
-          setState(() {
-            if (_phase == 0) {
-              _phase = 1;
-            } else if (_currentEditingDayIndex < _getSelectedDaysList().length - 1) {
-              _currentEditingDayIndex++;
-            } else {
-              _savePlan();
-            }
-          });
-        } : null,
-        style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
-        child: Text(_phase == 0 ? "Next" : (_currentEditingDayIndex < _getSelectedDaysList().length - 1 ? "Next Day" : "Save Plan")),
-      ),
-    );
-  }
 
   Future<void> _savePlan() async {
     final prefs = await SharedPreferences.getInstance();

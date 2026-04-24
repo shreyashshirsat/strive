@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/todo.dart';
 import 'package:intl/intl.dart';
+import '../services/notification_service.dart';
 
 class TodoScreen extends StatefulWidget {
   final List<Todo> todos;
@@ -23,20 +24,31 @@ class _TodoScreenState extends State<TodoScreen> {
 
   void _saveTask(Todo? existingTodo) {
     if (_taskController.text.isNotEmpty) {
+      Todo todoToSchedule;
       if (existingTodo != null) {
         // Update existing task
         existingTodo.title = _taskController.text;
         existingTodo.isDaily = _isDailyTask;
         existingTodo.reminderDateTime = _selectedReminder;
+        todoToSchedule = existingTodo;
       } else {
         // Add new task
-        widget.todos.add(Todo(
+        todoToSchedule = Todo(
           id: DateTime.now().toString(),
           title: _taskController.text,
           isDaily: _isDailyTask,
           reminderDateTime: _selectedReminder,
-        ));
+        );
+        widget.todos.add(todoToSchedule);
       }
+
+      // Handle notification
+      if (todoToSchedule.reminderDateTime != null) {
+        NotificationService().scheduleTodoNotification(todoToSchedule);
+      } else {
+        NotificationService().cancelNotification(todoToSchedule.id);
+      }
+
       _taskController.clear();
       _isDailyTask = false;
       _selectedReminder = null;
@@ -47,10 +59,16 @@ class _TodoScreenState extends State<TodoScreen> {
 
   void _toggleTodo(Todo todo) {
     todo.isCompleted = !todo.isCompleted;
+    if (todo.isCompleted) {
+      NotificationService().cancelNotification(todo.id);
+    } else if (todo.reminderDateTime != null) {
+      NotificationService().scheduleTodoNotification(todo);
+    }
     widget.onTodosChanged();
   }
 
   void _deleteTodo(Todo todo) {
+    NotificationService().cancelNotification(todo.id);
     widget.todos.remove(todo);
     widget.onTodosChanged();
   }
