@@ -1,10 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'home_screen.dart';
 import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await NotificationService().init();
+  
+  try {
+    await Hive.initFlutter();
+    
+    // Open boxes sequentially to ensure they are ready
+    await Hive.openBox('settings');
+    await Hive.openBox('todos');
+    await Hive.openBox('workout_plans');
+    await Hive.openBox('habits');
+  } catch (e) {
+    debugPrint("Hive Initialization Error: $e");
+  }
+
+  try {
+    await NotificationService().init();
+  } catch (e) {
+    debugPrint("Notification Initialization Error: $e");
+  }
+
   runApp(const MyApp());
 }
 

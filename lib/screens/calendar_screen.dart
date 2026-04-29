@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import '../models/habit.dart';
 import 'package:intl/intl.dart';
 
@@ -10,9 +11,33 @@ class CalendarScreen extends StatefulWidget {
 }
 
 class _CalendarScreenState extends State<CalendarScreen> {
-  final List<Habit> _habits = [
-    Habit(id: '1', name: 'Drink 2L Water'),
-  ];
+  List<Habit> _habits = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHabits();
+  }
+
+  void _loadHabits() async {
+    final box = await Hive.openBox('habits');
+    final List<dynamic>? storedHabits = box.get('list');
+    if (mounted) {
+      setState(() {
+        if (storedHabits != null) {
+          _habits = storedHabits.map((h) => Habit.fromMap(h as Map)).toList();
+        } else {
+          _habits = [Habit(id: '1', name: 'Drink 2L Water')];
+          _saveHabits();
+        }
+      });
+    }
+  }
+
+  Future<void> _saveHabits() async {
+    final box = await Hive.openBox('habits');
+    await box.put('list', _habits.map((h) => h.toMap()).toList());
+  }
 
   void _addHabit(String name) {
     setState(() {
@@ -21,18 +46,21 @@ class _CalendarScreenState extends State<CalendarScreen> {
         name: name,
       ));
     });
+    _saveHabits();
   }
 
   void _editHabit(Habit habit, String newName) {
     setState(() {
       habit.name = newName;
     });
+    _saveHabits();
   }
 
   void _deleteHabit(String id) {
     setState(() {
       _habits.removeWhere((h) => h.id == id);
     });
+    _saveHabits();
   }
 
   void _showHabitDialog({Habit? habit}) {
@@ -105,7 +133,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => HabitDetailScreen(habit: habit),
+                          builder: (context) => HabitDetailScreen(
+                            habit: habit,
+                            onDataChanged: _saveHabits,
+                          ),
                         ),
                       );
                     },
@@ -123,7 +154,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
 class HabitDetailScreen extends StatefulWidget {
   final Habit habit;
-  const HabitDetailScreen({super.key, required this.habit});
+  final VoidCallback onDataChanged;
+
+  const HabitDetailScreen({super.key, required this.habit, required this.onDataChanged});
 
   @override
   State<HabitDetailScreen> createState() => _HabitDetailScreenState();
@@ -224,6 +257,7 @@ class _HabitDetailScreenState extends State<HabitDetailScreen> {
                             setState(() {
                               widget.habit.dayStatus[dateKey] = (status + 1) % 3;
                             });
+                            widget.onDataChanged();
                           },
                           child: Container(
                             decoration: BoxDecoration(

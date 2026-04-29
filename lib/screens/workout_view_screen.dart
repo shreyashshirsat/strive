@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import '../models/workout_plan.dart';
 import '../models/exercise.dart';
 import 'workout_create_screen.dart';
@@ -23,18 +23,35 @@ class _WorkoutViewScreenState extends State<WorkoutViewScreen> {
   }
 
   Future<void> _loadPlans() async {
-    final prefs = await SharedPreferences.getInstance();
-    final List<String>? plansJson = prefs.getStringList('workout_plans');
-    if (plansJson != null) {
-      setState(() {
-        _allPlans = plansJson.map((s) => WorkoutPlan.fromMap(json.decode(s) as Map<String, dynamic>)).toList();
-      });
-    } else {
-      setState(() {
-        _allPlans = [];
-      });
+    try {
+      final box = await Hive.openBox('workout_plans');
+      final List<dynamic>? plans = box.get('plans');
+      if (plans != null) {
+        setState(() {
+          _allPlans = plans.map((s) {
+            if (s is String) {
+              return WorkoutPlan.fromMap(json.decode(s) as Map);
+            }
+            return WorkoutPlan.fromMap(s as Map);
+          }).toList();
+        });
+      } else {
+        setState(() {
+          _allPlans = [];
+        });
+      }
+    } catch (e) {
+      debugPrint("Error loading plans: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error loading plans: $e")),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
-    setState(() => _isLoading = false);
   }
 
   @override
@@ -114,12 +131,30 @@ class WorkoutPlanDetailsScreen extends StatefulWidget {
 
 class _WorkoutPlanDetailsScreenState extends State<WorkoutPlanDetailsScreen> {
   Future<void> _deletePlan(BuildContext context) async {
-    final prefs = await SharedPreferences.getInstance();
-    final List<String> plansJson = prefs.getStringList('workout_plans') ?? [];
-    plansJson.removeWhere((s) => WorkoutPlan.fromMap(json.decode(s) as Map<String, dynamic>).id == widget.plan.id);
-    await prefs.setStringList('workout_plans', plansJson);
-    widget.onUpdate();
-    if (context.mounted) Navigator.pop(context);
+    try {
+      final box = await Hive.openBox('workout_plans');
+      List<dynamic> plans = box.get('plans', defaultValue: []);
+      plans.removeWhere((p) {
+        try {
+          if (p is String) {
+            return WorkoutPlan.fromMap(json.decode(p) as Map).id == widget.plan.id;
+          }
+          return WorkoutPlan.fromMap(p as Map).id == widget.plan.id;
+        } catch (_) {
+          return false;
+        }
+      });
+      await box.put('plans', plans);
+      widget.onUpdate();
+      if (context.mounted) Navigator.pop(context);
+    } catch (e) {
+      debugPrint("Error deleting plan: $e");
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error deleting plan: $e")),
+        );
+      }
+    }
   }
 
   void _showDeleteDialog(BuildContext context) {

@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import '../models/exercise.dart';
 import '../models/workout_plan.dart';
 
@@ -40,22 +40,42 @@ class _WorkoutCreateScreenState extends State<WorkoutCreateScreen> {
 
   Future<void> _initName() async {
     if (widget.existingPlan == null) {
-      final prefs = await SharedPreferences.getInstance();
-      final List<String> savedStrings = prefs.getStringList('workout_plans') ?? [];
-      int count = savedStrings.length + 1;
-      
-      String defaultName = "Workout Plan $count";
-      bool nameExists = savedStrings.any((s) => WorkoutPlan.fromMap(json.decode(s) as Map<String, dynamic>).name == defaultName);
-      
-      while (nameExists) {
-        count++;
-        defaultName = "Workout Plan $count";
-        nameExists = savedStrings.any((s) => WorkoutPlan.fromMap(json.decode(s) as Map<String, dynamic>).name == defaultName);
+      try {
+        final box = await Hive.openBox('workout_plans');
+        final List<dynamic> savedPlans = box.get('plans', defaultValue: []);
+        int count = 1;
+        
+        String candidateName = "Workout Plan $count";
+        bool nameExists = true;
+        
+        while (nameExists) {
+          candidateName = "Workout Plan $count";
+          nameExists = savedPlans.any((s) {
+            try {
+              WorkoutPlan p;
+              if (s is String) {
+                p = WorkoutPlan.fromMap(json.decode(s) as Map);
+              } else {
+                p = WorkoutPlan.fromMap(s as Map);
+              }
+              return p.name.trim().toLowerCase() == candidateName.trim().toLowerCase();
+            } catch (_) {
+              return false;
+            }
+          });
+          if (nameExists) count++;
+        }
+        
+        setState(() {
+          _nameController.text = candidateName;
+        });
+      } catch (e) {
+        debugPrint("Error initializing name: $e");
+        // Fallback that is at least readable
+        setState(() {
+          _nameController.text = "New Workout Plan";
+        });
       }
-      
-      setState(() {
-        _nameController.text = defaultName;
-      });
     }
   }
 
@@ -401,48 +421,81 @@ class _WorkoutCreateScreenState extends State<WorkoutCreateScreen> {
 
 
   Future<void> _savePlan() async {
-    final prefs = await SharedPreferences.getInstance();
-    final List<String> savedStrings = prefs.getStringList('workout_plans') ?? [];
-    
-    // Check for unique name
-    bool nameExists = savedStrings.any((s) {
-      final p = WorkoutPlan.fromMap(json.decode(s) as Map<String, dynamic>);
-      return p.name.trim().toLowerCase() == _nameController.text.trim().toLowerCase() && 
-             (widget.existingPlan == null || p.id != widget.existingPlan!.id);
-    });
+    try {
+      final box = await Hive.openBox('workout_plans');
+      final List<dynamic> savedPlansData = box.get('plans', defaultValue: []);
+      
+      // Convert saved data to a list of maps, handling strings or maps
+      List<Map<dynamic, dynamic>> savedPlans = [];
+      for (var s in savedPlansData) {
+        if (s is String) {
+          try {
+            savedPlans.add(json.decode(s) as Map);
+          } catch (_) {}
+        } else if (s is Map) {
+          savedPlans.add(s);
+        }
+      }
 
-    if (nameExists) {
+      // Check for unique name
+      bool nameExists = savedPlans.any((s) {
+        try {
+          final p = WorkoutPlan.fromMap(s);
+          return p.name.trim().toLowerCase() == _nameController.text.trim().toLowerCase() && 
+                 (widget.existingPlan == null || p.id != widget.existingPlan!.id);
+        } catch (_) {
+          return false;
+        }
+      });
+
+      if (nameExists) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("A plan with this name already exists. Please choose a different name.")),
+          );
+        }
+        return;
+      }
+
+      List<DayWorkout> dws = [];
+      for (var day in _getSelectedDaysList()) {
+        var config = _dayConfigs[day]!;
+        dws.add(DayWorkout(
+          day: day, 
+          muscleGroups: config.selectedMuscleGroups.toList(), 
+          selectedExercises: config.selectedExercises.toList(), 
+          isGymWorkout: config.equipment == Equipment.machines
+        ));
+      }
+
+      final plan = WorkoutPlan(
+        id: widget.existingPlan?.id ?? DateTime.now().millisecondsSinceEpoch.toString(), 
+        name: _nameController.text, 
+        dayWorkouts: dws
+      );
+      
+      if (widget.existingPlan != null) {
+        savedPlans.removeWhere((p) {
+          try {
+            return WorkoutPlan.fromMap(p).id == widget.existingPlan!.id;
+          } catch (_) {
+            return false;
+          }
+        });
+      }
+      
+      savedPlans.add(plan.toMap());
+      
+      await box.put('plans', savedPlans);
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      debugPrint("Error saving plan: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("A plan with this name already exists. Please choose a different name.")),
+          SnackBar(content: Text("Error saving plan: $e")),
         );
       }
-      return;
     }
-
-    List<DayWorkout> dws = [];
-    for (var day in _getSelectedDaysList()) {
-      var config = _dayConfigs[day]!;
-      dws.add(DayWorkout(
-        day: day, 
-        muscleGroups: config.selectedMuscleGroups.toList(), 
-        selectedExercises: config.selectedExercises.toList(), 
-        isGymWorkout: config.equipment == Equipment.machines
-      ));
-    }
-
-    final plan = WorkoutPlan(
-      id: widget.existingPlan?.id ?? DateTime.now().toString(), 
-      name: _nameController.text, 
-      dayWorkouts: dws
-    );
-    
-    if (widget.existingPlan != null) {
-      savedStrings.removeWhere((s) => WorkoutPlan.fromMap(json.decode(s) as Map<String, dynamic>).id == widget.existingPlan!.id);
-    }
-    savedStrings.add(json.encode(plan.toMap()));
-    await prefs.setStringList('workout_plans', savedStrings);
-    if (mounted) Navigator.pop(context, true);
   }
 }
 

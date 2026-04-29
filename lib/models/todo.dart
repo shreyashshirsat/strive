@@ -23,14 +23,14 @@ class Todo {
     };
   }
 
-  factory Todo.fromMap(Map<String, dynamic> map) {
+  factory Todo.fromMap(Map<dynamic, dynamic> map) {
     return Todo(
-      id: map['id'],
-      title: map['title'],
+      id: map['id'].toString(),
+      title: map['title'].toString(),
       isCompleted: map['isCompleted'] ?? false,
       isDaily: map['isDaily'] ?? false,
       reminderDateTime: map['reminderDateTime'] != null 
-          ? DateTime.parse(map['reminderDateTime']) 
+          ? DateTime.parse(map['reminderDateTime'].toString())
           : null,
     );
   }

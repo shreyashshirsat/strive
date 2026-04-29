@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'workout_create_screen.dart';
 import 'workout_view_screen.dart';
 
@@ -20,12 +20,16 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   }
 
   Future<void> _loadPlanCount() async {
-    final prefs = await SharedPreferences.getInstance();
-    final List<String>? plans = prefs.getStringList('workout_plans');
-    if (mounted) {
-      setState(() {
-        _planCount = plans?.length ?? 0;
-      });
+    try {
+      final box = await Hive.openBox('workout_plans');
+      final List<dynamic>? plans = box.get('plans');
+      if (mounted) {
+        setState(() {
+          _planCount = plans?.length ?? 0;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error loading plan count: $e");
     }
   }
 
@@ -75,7 +79,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
             const SizedBox(height: 24),
             _buildOptionCard(
               context,
-              title: "Explore workouts",
+              title: "Explore Workouts",
               subtitle: "Browse pre-made workout routines",
               icon: Icons.explore_outlined,
               color: Colors.green.shade700,

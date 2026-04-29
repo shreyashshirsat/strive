@@ -24,13 +24,13 @@ class Exercise {
     };
   }
 
-  factory Exercise.fromMap(Map<String, dynamic> map) {
+  factory Exercise.fromMap(Map<dynamic, dynamic> map) {
     return exerciseLibrary.firstWhere(
-      (e) => e.name == map['name'],
+      (e) => e.name == (map['name'] ?? '').toString(),
       orElse: () => Exercise(
-        name: map['name'],
-        muscleGroup: MuscleGroup.values[map['muscleGroup']],
-        equipment: Equipment.values[map['equipment']],
+        name: (map['name'] ?? '').toString(),
+        muscleGroup: MuscleGroup.values[int.parse((map['muscleGroup'] ?? 0).toString())],
+        equipment: Equipment.values[int.parse((map['equipment'] ?? 0).toString())],
         isTimed: map['isTimed'] ?? false,
       ),
     );
@@ -62,13 +62,13 @@ class PlannedExercise {
     };
   }
 
-  factory PlannedExercise.fromMap(Map<String, dynamic> map) {
+  factory PlannedExercise.fromMap(Map<dynamic, dynamic> map) {
     return PlannedExercise(
-      exercise: Exercise.fromMap(map['exercise']),
-      sets: map['sets'],
-      reps: map['reps'],
-      minutes: map['minutes'],
-      seconds: map['seconds'],
+      exercise: Exercise.fromMap(map['exercise'] as Map),
+      sets: map['sets'] != null ? int.parse(map['sets'].toString()) : null,
+      reps: map['reps'] != null ? int.parse(map['reps'].toString()) : null,
+      minutes: map['minutes'] != null ? int.parse(map['minutes'].toString()) : null,
+      seconds: map['seconds'] != null ? int.parse(map['seconds'].toString()) : null,
     );
   }
 }

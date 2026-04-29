@@ -22,12 +22,16 @@ class DayWorkout {
     };
   }
 
-  factory DayWorkout.fromMap(Map<String, dynamic> map) {
+  factory DayWorkout.fromMap(Map<dynamic, dynamic> map) {
     return DayWorkout(
-      day: map['day'],
-      muscleGroups: (map['muscleGroups'] as List).map((e) => MuscleGroup.values[e]).toList(),
-      selectedExercises: (map['selectedExercises'] as List).map((e) => PlannedExercise.fromMap(e)).toList(),
-      isGymWorkout: map['isGymWorkout'],
+      day: (map['day'] ?? '').toString(),
+      muscleGroups: (map['muscleGroups'] as List? ?? [])
+          .map((e) => MuscleGroup.values[int.parse(e.toString())])
+          .toList(),
+      selectedExercises: (map['selectedExercises'] as List? ?? [])
+          .map((e) => PlannedExercise.fromMap(e as Map))
+          .toList(),
+      isGymWorkout: map['isGymWorkout'] ?? false,
     );
   }
 }
@@ -51,11 +55,13 @@ class WorkoutPlan {
     };
   }
 
-  factory WorkoutPlan.fromMap(Map<String, dynamic> map) {
+  factory WorkoutPlan.fromMap(Map<dynamic, dynamic> map) {
     return WorkoutPlan(
-      id: map['id'],
-      name: map['name'] ?? 'Workout Plan',
-      dayWorkouts: (map['dayWorkouts'] as List).map((e) => DayWorkout.fromMap(e)).toList(),
+      id: (map['id'] ?? '').toString(),
+      name: (map['name'] ?? 'Workout Plan').toString(),
+      dayWorkouts: (map['dayWorkouts'] as List? ?? [])
+          .map((e) => DayWorkout.fromMap(e as Map))
+          .toList(),
     );
   }
 }
