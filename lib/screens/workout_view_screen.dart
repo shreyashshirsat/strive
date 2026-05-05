@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/workout_plan.dart';
 import '../models/exercise.dart';
 import 'workout_create_screen.dart';
@@ -24,16 +24,11 @@ class _WorkoutViewScreenState extends State<WorkoutViewScreen> {
 
   Future<void> _loadPlans() async {
     try {
-      final box = await Hive.openBox('workout_plans');
-      final List<dynamic>? plans = box.get('plans');
+      final prefs = await SharedPreferences.getInstance();
+      final List<String>? plans = prefs.getStringList('workout_plans');
       if (plans != null) {
         setState(() {
-          _allPlans = plans.map((s) {
-            if (s is String) {
-              return WorkoutPlan.fromMap(json.decode(s) as Map);
-            }
-            return WorkoutPlan.fromMap(s as Map);
-          }).toList();
+          _allPlans = plans.map((s) => WorkoutPlan.fromMap(json.decode(s) as Map)).toList();
         });
       } else {
         setState(() {
@@ -132,19 +127,10 @@ class WorkoutPlanDetailsScreen extends StatefulWidget {
 class _WorkoutPlanDetailsScreenState extends State<WorkoutPlanDetailsScreen> {
   Future<void> _deletePlan(BuildContext context) async {
     try {
-      final box = await Hive.openBox('workout_plans');
-      List<dynamic> plans = box.get('plans', defaultValue: []);
-      plans.removeWhere((p) {
-        try {
-          if (p is String) {
-            return WorkoutPlan.fromMap(json.decode(p) as Map).id == widget.plan.id;
-          }
-          return WorkoutPlan.fromMap(p as Map).id == widget.plan.id;
-        } catch (_) {
-          return false;
-        }
-      });
-      await box.put('plans', plans);
+      final prefs = await SharedPreferences.getInstance();
+      List<String> plans = prefs.getStringList('workout_plans') ?? [];
+      plans.removeWhere((p) => WorkoutPlan.fromMap(json.decode(p) as Map).id == widget.plan.id);
+      await prefs.setStringList('workout_plans', plans);
       widget.onUpdate();
       if (context.mounted) Navigator.pop(context);
     } catch (e) {

@@ -1,5 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/habit.dart';
 import 'package:intl/intl.dart';
 
@@ -20,12 +21,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   void _loadHabits() async {
-    final box = await Hive.openBox('habits');
-    final List<dynamic>? storedHabits = box.get('list');
+    final prefs = await SharedPreferences.getInstance();
+    final String? habitsData = prefs.getString('habits');
     if (mounted) {
       setState(() {
-        if (storedHabits != null) {
-          _habits = storedHabits.map((h) => Habit.fromMap(h as Map)).toList();
+        if (habitsData != null) {
+          final List<dynamic> decoded = json.decode(habitsData);
+          _habits = decoded.map((h) => Habit.fromMap(h as Map)).toList();
         } else {
           _habits = [Habit(id: '1', name: 'Drink 2L Water')];
           _saveHabits();
@@ -35,8 +37,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   Future<void> _saveHabits() async {
-    final box = await Hive.openBox('habits');
-    await box.put('list', _habits.map((h) => h.toMap()).toList());
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('habits', json.encode(_habits.map((h) => h.toMap()).toList()));
   }
 
   void _addHabit(String name) {

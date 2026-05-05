@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class QuotesScreen extends StatefulWidget {
   const QuotesScreen({super.key});
@@ -22,12 +22,12 @@ class _QuotesScreenState extends State<QuotesScreen> {
   }
 
   Future<void> _fetchQuote() async {
-    final box = await Hive.openBox('settings');
+    final prefs = await SharedPreferences.getInstance();
     
     // Try to load the cached quote first
     setState(() {
-      _quote = box.get('last_quote_text') ?? _quote;
-      _author = box.get('last_quote_author') ?? _author;
+      _quote = prefs.getString('last_quote_text') ?? _quote;
+      _author = prefs.getString('last_quote_author') ?? _author;
     });
 
     try {
@@ -46,8 +46,8 @@ class _QuotesScreenState extends State<QuotesScreen> {
           });
 
           // Cache the successfully fetched quote
-          await box.put('last_quote_text', newQuote);
-          await box.put('last_quote_author', newAuthor);
+          await prefs.setString('last_quote_text', newQuote);
+          await prefs.setString('last_quote_author', newAuthor);
         }
       }
     } catch (e) {

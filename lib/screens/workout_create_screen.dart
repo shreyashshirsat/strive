@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/exercise.dart';
 import '../models/workout_plan.dart';
 
@@ -41,8 +41,8 @@ class _WorkoutCreateScreenState extends State<WorkoutCreateScreen> {
   Future<void> _initName() async {
     if (widget.existingPlan == null) {
       try {
-        final box = await Hive.openBox('workout_plans');
-        final List<dynamic> savedPlans = box.get('plans', defaultValue: []);
+        final prefs = await SharedPreferences.getInstance();
+        final List<String> savedPlans = prefs.getStringList('workout_plans') ?? [];
         int count = 1;
         
         String candidateName = "Workout Plan $count";
@@ -52,12 +52,7 @@ class _WorkoutCreateScreenState extends State<WorkoutCreateScreen> {
           candidateName = "Workout Plan $count";
           nameExists = savedPlans.any((s) {
             try {
-              WorkoutPlan p;
-              if (s is String) {
-                p = WorkoutPlan.fromMap(json.decode(s) as Map);
-              } else {
-                p = WorkoutPlan.fromMap(s as Map);
-              }
+              final p = WorkoutPlan.fromMap(json.decode(s) as Map);
               return p.name.trim().toLowerCase() == candidateName.trim().toLowerCase();
             } catch (_) {
               return false;
@@ -71,7 +66,6 @@ class _WorkoutCreateScreenState extends State<WorkoutCreateScreen> {
         });
       } catch (e) {
         debugPrint("Error initializing name: $e");
-        // Fallback that is at least readable
         setState(() {
           _nameController.text = "New Workout Plan";
         });
@@ -422,25 +416,13 @@ class _WorkoutCreateScreenState extends State<WorkoutCreateScreen> {
 
   Future<void> _savePlan() async {
     try {
-      final box = await Hive.openBox('workout_plans');
-      final List<dynamic> savedPlansData = box.get('plans', defaultValue: []);
+      final prefs = await SharedPreferences.getInstance();
+      final List<String> savedPlans = prefs.getStringList('workout_plans') ?? [];
       
-      // Convert saved data to a list of maps, handling strings or maps
-      List<Map<dynamic, dynamic>> savedPlans = [];
-      for (var s in savedPlansData) {
-        if (s is String) {
-          try {
-            savedPlans.add(json.decode(s) as Map);
-          } catch (_) {}
-        } else if (s is Map) {
-          savedPlans.add(s);
-        }
-      }
-
       // Check for unique name
       bool nameExists = savedPlans.any((s) {
         try {
-          final p = WorkoutPlan.fromMap(s);
+          final p = WorkoutPlan.fromMap(json.decode(s) as Map);
           return p.name.trim().toLowerCase() == _nameController.text.trim().toLowerCase() && 
                  (widget.existingPlan == null || p.id != widget.existingPlan!.id);
         } catch (_) {
@@ -475,18 +457,18 @@ class _WorkoutCreateScreenState extends State<WorkoutCreateScreen> {
       );
       
       if (widget.existingPlan != null) {
-        savedPlans.removeWhere((p) {
+        savedPlans.removeWhere((s) {
           try {
-            return WorkoutPlan.fromMap(p).id == widget.existingPlan!.id;
+            return WorkoutPlan.fromMap(json.decode(s) as Map).id == widget.existingPlan!.id;
           } catch (_) {
             return false;
           }
         });
       }
       
-      savedPlans.add(plan.toMap());
+      savedPlans.add(json.encode(plan.toMap()));
       
-      await box.put('plans', savedPlans);
+      await prefs.setStringList('workout_plans', savedPlans);
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       debugPrint("Error saving plan: $e");

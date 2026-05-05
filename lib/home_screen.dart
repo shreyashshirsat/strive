@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'models/todo.dart';
 import 'screens/quotes_screen.dart';
@@ -26,17 +26,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadTodos() async {
-    final todoBox = await Hive.openBox('todos');
-    final settingsBox = await Hive.openBox('settings');
-    
+    final prefs = await SharedPreferences.getInstance();
     final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    final String? lastResetDate = settingsBox.get('last_todo_reset');
+    final String? lastResetDate = prefs.getString('last_todo_reset');
+    final String? todoData = prefs.getString('todos');
 
     List<Todo> loadedTodos = [];
-    final todoData = todoBox.get('list');
-    
     if (todoData != null) {
-      final List<dynamic> decoded = todoData is String ? json.decode(todoData) : todoData;
+      final List<dynamic> decoded = json.decode(todoData);
       loadedTodos = decoded.map((item) => Todo.fromMap(item as Map)).toList();
     }
 
@@ -46,8 +43,8 @@ class _HomeScreenState extends State<HomeScreen> {
           todo.isCompleted = false;
         }
       }
-      await settingsBox.put('last_todo_reset', today);
-      await todoBox.put('list', loadedTodos.map((todo) => todo.toMap()).toList());
+      await prefs.setString('last_todo_reset', today);
+      await prefs.setString('todos', json.encode(loadedTodos.map((todo) => todo.toMap()).toList()));
     }
 
     if (mounted) {
@@ -58,8 +55,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _saveTodos() async {
-    final todoBox = await Hive.openBox('todos');
-    await todoBox.put('list', _todos.map((todo) => todo.toMap()).toList());
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('todos', json.encode(_todos.map((todo) => todo.toMap()).toList()));
   }
 
   void _onTodosChanged() {

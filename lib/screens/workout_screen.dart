@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'workout_create_screen.dart';
 import 'workout_view_screen.dart';
 
@@ -21,8 +21,8 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
 
   Future<void> _loadPlanCount() async {
     try {
-      final box = await Hive.openBox('workout_plans');
-      final List<dynamic>? plans = box.get('plans');
+      final prefs = await SharedPreferences.getInstance();
+      final List<String>? plans = prefs.getStringList('workout_plans');
       if (mounted) {
         setState(() {
           _planCount = plans?.length ?? 0;
